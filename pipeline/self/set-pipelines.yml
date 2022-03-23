@@ -1,0 +1,32 @@
+---
+resources:
+- name: command-center
+  type: git
+  icon: github
+  check_every: 30m
+  source:
+    uri: "https://github.com/HuseyinUtkuASLAN/command-center.git"
+    branch: "main"
+
+jobs:
+# update this pipeline before updating child pipelines
+- name: set-self
+  public: true
+  plan:
+  - get: command-center
+    trigger: true
+  - set_pipeline: self
+    file: command-center/pipelines/self/set-pipelines.yml
+
+
+- name: dummy-net-api
+  public: true
+  plan:
+  - get: command-center
+    trigger: true
+    passed: [set-self]
+
+  - set_pipeline: set-dummy-net-api
+    file: command-center/pipelines/dummy-net-api/pipeline.yml
+    var_files:
+    - command-center/pipelines/dummy-net-api/vars.yml

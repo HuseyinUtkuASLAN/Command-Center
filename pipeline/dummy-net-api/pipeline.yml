@@ -1,0 +1,115 @@
+resources:
+- name: app-repo
+  type: git
+  icon: github
+  source:
+    uri: "https://github.com/HuseyinUtkuASLAN/dummy-net-api.git"
+    branch: "main"
+
+- name: docker-demo
+  type: docker-image
+  source:
+    repository: huseyinutkuaslan/dummy-net-api
+    username: ((docker-hub-user-name))
+    password: ((docker-hub-password))
+
+jobs:
+
+- name: build-test-and-publish-to-hub
+  public: true
+
+  plan:
+  - get: app-repo
+    trigger: true
+  
+  - task: build
+    config:
+      inputs:
+      - name : app-repo
+      outputs:
+      - name: app-repo
+      platform : linux
+      image_resource:
+        type: registry-image
+         
+        source: { repository: mcr.microsoft.com/dotnet/sdk , tag: 3.1}
+      run:
+        path: sh
+        args: 
+          - -exc
+          - |
+            cd app-repo/src/dummy-api
+            dotnet restore
+            dotnet build
+
+  - task: test
+    config:
+      inputs:
+      - name : app-repo
+      platform : linux
+      image_resource:
+        type: registry-image
+        source: { repository: mcr.microsoft.com/dotnet/sdk , tag: 3.1 }
+      run:
+        path: sh
+        args: 
+          - -exc
+          - |
+            cd app-repo/src/dummy-api
+            dotnet restore
+            dotnet test
+  
+  - task: publish
+    config:
+      inputs: 
+      - name: app-repo
+      outputs:
+      - name: published-files
+      platform : linux
+      image_resource:
+        type: registry-image
+        source: { repository: mcr.microsoft.com/dotnet/sdk , tag: 3.1 }
+      run:
+        path: sh
+        args: 
+          - -exc
+          - |
+            dotnet publish -c Release app-repo/src/dummy-api
+            cp app-repo/src/dummy-api/dummy-api/bin/Release/netcoreapp3.1/publish/* published-files/
+            cp app-repo/ci/runtime-image/Dockerfile published-files/
+            apt-get update
+            apt-get install tree
+            tree published-files
+  - put: docker-demo
+    params:
+      build: published-files
+      
+# - name: auto-blackbox-testing
+
+- name: manuel-acceptance
+  plan:
+  - get: docker-demo
+    passed : [build-test-and-publish-to-hub]
+
+- name: deploy-using-workaround
+
+  plan:
+  - get: docker-demo
+    passed : [manuel-acceptance]
+    trigger: true
+
+  - task: deploy
+    config:
+      platform : linux
+
+      image_resource:
+        type: registry-image
+        source: {repository: ubuntu}
+      run:
+        path: sh
+        args: 
+          - -exc
+          - |
+            apt-get update
+            apt-get install -y curl
+            curl curl -X POST http://((host-ip-address)):8081
