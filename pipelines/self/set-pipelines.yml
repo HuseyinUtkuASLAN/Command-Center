@@ -19,14 +19,14 @@ jobs:
     file: command-center/pipelines/self/set-pipelines.yml
 
 
-- name: dummy-net-api
+- name: set-dummy-net-api
   public: true
   plan:
   - get: command-center
     trigger: true
     passed: [set-self]
 
-  - set_pipeline: set-dummy-net-api
+  - set_pipeline: dummy-net-api
     file: command-center/pipelines/dummy-net-api/pipeline.yml
     var_files:
     - command-center/pipelines/dummy-net-api/vars.yml
